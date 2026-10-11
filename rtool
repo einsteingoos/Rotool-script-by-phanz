@@ -1,0 +1,583 @@
+-- ==============================================
+-- BRICK ROTATION TOOL | WHITELISTED VERSION
+-- ==============================================
+-- 🔒 OWNER: EinsteinGoos
+-- 🔑 WHITELISTER ID: 2444672094
+-- ✅ Auto-kick unwhitelisted users
+-- ✅ Only whitelisted players can run the script
+-- ✅ Whitelister can add/remove players
+-- ==============================================
+
+-- ==============================================
+-- 🛡️ WHITELIST SYSTEM
+-- ==============================================
+local Players = game:GetService("Players")
+local CoreGui = game:GetService("CoreGui")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local Workspace = game:GetService("Workspace")
+
+-- ⚙️ CONFIG
+local OWNER_USERID = 10840760745       -- ✅ YOUR USERID
+local WHITELISTER_USERID = 2444672094  -- Can add/remove whitelist
+
+-- Whitelisted UserIDs
+local Whitelist = {
+    [OWNER_USERID] = true,
+    [WHITELISTER_USERID] = true
+}
+
+local LocalPlayer = Players.LocalPlayer
+local LocalPlayerUserId = LocalPlayer.UserId
+
+-- ✅ Check if player is whitelisted
+local function isWhitelisted(userId)
+    return Whitelist[userId] == true
+end
+
+-- ✅ Check if player is whitelister
+local function isWhitelister(userId)
+    return userId == WHITELISTER_USERID or userId == OWNER_USERID
+end
+
+-- 🚫 Auto-kick unwhitelisted users
+if not isWhitelisted(LocalPlayerUserId) then
+    task.wait(0.5)
+    LocalPlayer:Kick("❌ Not Whitelisted — Contact EinsteinGoos")
+    return
+end
+
+-- 💬 Notify status
+if LocalPlayerUserId == OWNER_USERID then
+    print("👑 Welcome back, Owner!")
+elseif LocalPlayerUserId == WHITELISTER_USERID then
+    print("🔑 Welcome, Whitelister!")
+else
+    print("✅ Welcome — Whitelisted")
+end
+
+-- ==============================================
+-- 📋 WHITELIST MANAGEMENT FUNCTIONS
+-- ==============================================
+local function addToWhitelist(userId)
+    if not isWhitelister(LocalPlayerUserId) then
+        warn("❌ Only whitelister or owner can add users")
+        return false
+    end
+    Whitelist[userId] = true
+    print("✅ Added UserID " .. userId .. " to whitelist")
+    return true
+end
+
+local function removeFromWhitelist(userId)
+    if not isWhitelister(LocalPlayerUserId) then
+        warn("❌ Only whitelister or owner can remove users")
+        return false
+    end
+    if userId == OWNER_USERID then
+        warn("❌ Cannot remove owner from whitelist")
+        return false
+    end
+    Whitelist[userId] = nil
+    print("❌ Removed UserID " .. userId .. " from whitelist")
+    return true
+end
+
+-- ==============================================
+-- 📦 SAVE WHITELIST TO GLOBAL (persists during session)
+-- ==============================================
+_G.BrickToolWhitelist = Whitelist
+_G.AddToWhitelist = addToWhitelist
+_G.RemoveFromWhitelist = removeFromWhitelist
+
+-- ==============================================
+-- 🎨 MAIN SCRIPT: DRAG-TO-ROTATE TOOL
+-- ==============================================
+
+local localPlayer = LocalPlayer
+local playerMouse = localPlayer:GetMouse()
+local brickFolder = Workspace:WaitForChild("Bricks")
+
+local Backpack = localPlayer:WaitForChild("Backpack")
+local Character, RootPart
+
+local function updateChar()
+    Character = localPlayer.Character or localPlayer.CharacterAdded:Wait()
+    RootPart = Character:WaitForChild("HumanoidRootPart")
+end
+updateChar()
+localPlayer.CharacterAdded:Connect(updateChar)
+
+-- Global selected brick
+local SELECTED_BRICK = nil
+local targetPos = Vector3.new(0, 0, 0)
+
+-- GUI for Rotate Tool
+local GUI = {}
+
+GUI.ScreenGui = Instance.new("ScreenGui", CoreGui)
+GUI.ScreenGui.Name = "RotateToolGUI"
+GUI.ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+GUI.ScreenGui.Enabled = false
+
+GUI.Background = Instance.new("Frame", GUI.ScreenGui)
+GUI.Background.Active = true
+GUI.Background.BorderSizePixel = 0
+GUI.Background.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+GUI.Background.BackgroundTransparency = 0.55
+GUI.Background.AnchorPoint = Vector2.new(0.5, 0.5)
+GUI.Background.Size = UDim2.new(0, 230, 0, 340)
+GUI.Background.Position = UDim2.new(0.5, 250, 0.5, -40)
+GUI.Background.Name = "Background"
+
+local bgCorner = Instance.new("UICorner", GUI.Background)
+bgCorner.CornerRadius = UDim.new(0, 16)
+
+local bgStroke = Instance.new("UIStroke", GUI.Background)
+bgStroke.Thickness = 1
+bgStroke.Color = Color3.fromRGB(255, 255, 255)
+bgStroke.Transparency = 0.75
+
+GUI.TitleLabel = Instance.new("TextLabel", GUI.Background)
+GUI.TitleLabel.TextWrapped = true
+GUI.TitleLabel.ZIndex = 2
+GUI.TitleLabel.BorderSizePixel = 0
+GUI.TitleLabel.TextScaled = true
+GUI.TitleLabel.BackgroundTransparency = 1
+GUI.TitleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+GUI.TitleLabel.AnchorPoint = Vector2.new(0.5, 0.5)
+GUI.TitleLabel.Size = UDim2.new(0, 210, 0, 40)
+GUI.TitleLabel.Text = "Rotate & Build"
+GUI.TitleLabel.FontFace = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Medium, Enum.FontStyle.Normal)
+GUI.TitleLabel.Position = UDim2.new(0.5, 0, 0.5, -145)
+
+GUI.CustomizationsFrame = Instance.new("Frame", GUI.Background)
+GUI.CustomizationsFrame.ZIndex = 2
+GUI.CustomizationsFrame.BorderSizePixel = 0
+GUI.CustomizationsFrame.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+GUI.CustomizationsFrame.BackgroundTransparency = 0.92
+GUI.CustomizationsFrame.AnchorPoint = Vector2.new(0.5, 0.5)
+GUI.CustomizationsFrame.Size = UDim2.new(0, 210, 0, 270)
+GUI.CustomizationsFrame.Position = UDim2.new(0.5, 0, 0.5, 25)
+
+local customCorner = Instance.new("UICorner", GUI.CustomizationsFrame)
+customCorner.CornerRadius = UDim.new(0, 12)
+
+local customStroke = Instance.new("UIStroke", GUI.CustomizationsFrame)
+customStroke.Thickness = 1
+customStroke.Color = Color3.fromRGB(255, 255, 255)
+customStroke.Transparency = 0.85
+
+GUI.AngleTextBox = Instance.new("TextBox", GUI.CustomizationsFrame)
+GUI.AngleTextBox.ZIndex = 3
+GUI.AngleTextBox.BorderSizePixel = 0
+GUI.AngleTextBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+GUI.AngleTextBox.TextScaled = true
+GUI.AngleTextBox.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+GUI.AngleTextBox.BackgroundTransparency = 0.9
+GUI.AngleTextBox.AnchorPoint = Vector2.new(0.5, 0.5)
+GUI.AngleTextBox.Size = UDim2.new(0, 180, 0, 40)
+GUI.AngleTextBox.Position = UDim2.new(0.5, 0, 0.5, -85)
+GUI.AngleTextBox.PlaceholderText = "15"
+GUI.AngleTextBox.PlaceholderColor3 = Color3.fromRGB(150, 150, 150)
+GUI.AngleTextBox.FontFace = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
+
+local boxCorner = Instance.new("UICorner", GUI.AngleTextBox)
+boxCorner.CornerRadius = UDim.new(0, 10)
+
+local boxStroke = Instance.new("UIStroke", GUI.AngleTextBox)
+boxStroke.Thickness = 1
+boxStroke.Color = Color3.fromRGB(255, 255, 255)
+boxStroke.Transparency = 0.8
+
+GUI.AngleLabel = Instance.new("TextLabel", GUI.CustomizationsFrame)
+GUI.AngleLabel.TextWrapped = true
+GUI.AngleLabel.ZIndex = 3
+GUI.AngleLabel.TextColor3 = Color3.fromRGB(200, 200, 205)
+GUI.AngleLabel.TextScaled = true
+GUI.AngleLabel.BackgroundTransparency = 1
+GUI.AngleLabel.AnchorPoint = Vector2.new(0.5, 0.5)
+GUI.AngleLabel.Size = UDim2.new(0, 180, 0, 22)
+GUI.AngleLabel.Text = "Rotation Angle: 15"
+GUI.AngleLabel.FontFace = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
+GUI.AngleLabel.Position = UDim2.new(0.5, 0, 0.5, -45)
+
+GUI.StatusLabel = Instance.new("TextLabel", GUI.CustomizationsFrame)
+GUI.StatusLabel.ZIndex = 3
+GUI.StatusLabel.TextColor3 = Color3.fromRGB(150, 150, 150)
+GUI.StatusLabel.TextScaled = true
+GUI.StatusLabel.BackgroundTransparency = 1
+GUI.StatusLabel.AnchorPoint = Vector2.new(0.5, 0.5)
+GUI.StatusLabel.Size = UDim2.new(0, 180, 0, 18)
+GUI.StatusLabel.Text = "No brick selected"
+GUI.StatusLabel.FontFace = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
+GUI.StatusLabel.Position = UDim2.new(0.5, 0, 0.5, -5)
+
+GUI.ConfirmButton = Instance.new("TextButton", GUI.CustomizationsFrame)
+GUI.ConfirmButton.ZIndex = 3
+GUI.ConfirmButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+GUI.ConfirmButton.TextScaled = true
+GUI.ConfirmButton.BackgroundColor3 = Color3.fromRGB(60, 180, 80)
+GUI.ConfirmButton.BackgroundTransparency = 0
+GUI.ConfirmButton.AnchorPoint = Vector2.new(0.5, 0.5)
+GUI.ConfirmButton.Size = UDim2.new(0, 180, 0, 35)
+GUI.ConfirmButton.Text = "✅ Confirm Rotation"
+GUI.ConfirmButton.FontFace = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Medium, Enum.FontStyle.Normal)
+GUI.ConfirmButton.Position = UDim2.new(0.5, 0, 0.5, 30)
+
+local btnCorner = Instance.new("UICorner", GUI.ConfirmButton)
+btnCorner.CornerRadius = UDim.new(0, 10)
+
+local btnStroke = Instance.new("UIStroke", GUI.ConfirmButton)
+btnStroke.Thickness = 1
+btnStroke.Color = Color3.fromRGB(255, 255, 255)
+btnStroke.Transparency = 0.7
+
+GUI.SequenceButton = Instance.new("TextButton", GUI.CustomizationsFrame)
+GUI.SequenceButton.ZIndex = 3
+GUI.SequenceButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+GUI.SequenceButton.TextScaled = true
+GUI.SequenceButton.BackgroundColor3 = Color3.fromRGB(79, 158, 255)
+GUI.SequenceButton.BackgroundTransparency = 0
+GUI.SequenceButton.AnchorPoint = Vector2.new(0.5, 0.5)
+GUI.SequenceButton.Size = UDim2.new(0, 180, 0, 35)
+GUI.SequenceButton.Text = "🚀 RUN SEQUENCE"
+GUI.SequenceButton.FontFace = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Medium, Enum.FontStyle.Normal)
+GUI.SequenceButton.Position = UDim2.new(0.5, 0, 0.5, 75)
+
+local seqCorner = Instance.new("UICorner", GUI.SequenceButton)
+seqCorner.CornerRadius = UDim.new(0, 10)
+
+local seqStroke = Instance.new("UIStroke", GUI.SequenceButton)
+seqStroke.Thickness = 1
+seqStroke.Color = Color3.fromRGB(255, 255, 255)
+seqStroke.Transparency = 0.7
+
+-- Whitelister buttons
+if isWhitelister(LocalPlayerUserId) then
+    GUI.WhitelistLabel = Instance.new("TextLabel", GUI.CustomizationsFrame)
+    GUI.WhitelistLabel.ZIndex = 3
+    GUI.WhitelistLabel.TextColor3 = Color3.fromRGB(255, 215, 0)
+    GUI.WhitelistLabel.TextScaled = true
+    GUI.WhitelistLabel.BackgroundTransparency = 1
+    GUI.WhitelistLabel.AnchorPoint = Vector2.new(0.5, 0.5)
+    GUI.WhitelistLabel.Size = UDim2.new(0, 180, 0, 18)
+    GUI.WhitelistLabel.Text = "🔑 Whitelister Panel"
+    GUI.WhitelistLabel.FontFace = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Medium, Enum.FontStyle.Normal)
+    GUI.WhitelistLabel.Position = UDim2.new(0.5, 0, 0.5, 115)
+
+    GUI.AddUserIdBox = Instance.new("TextBox", GUI.CustomizationsFrame)
+    GUI.AddUserIdBox.ZIndex = 3
+    GUI.AddUserIdBox.BorderSizePixel = 0
+    GUI.AddUserIdBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+    GUI.AddUserIdBox.TextScaled = true
+    GUI.AddUserIdBox.BackgroundColor3 = Color3.fromRGB(40, 180, 100)
+    GUI.AddUserIdBox.BackgroundTransparency = 0.85
+    GUI.AddUserIdBox.AnchorPoint = Vector2.new(0.5, 0.5)
+    GUI.AddUserIdBox.Size = UDim2.new(0, 180, 0, 30)
+    GUI.AddUserIdBox.Position = UDim2.new(0.5, 0, 0.5, 145)
+    GUI.AddUserIdBox.PlaceholderText = "Add UserID"
+    GUI.AddUserIdBox.PlaceholderColor3 = Color3.fromRGB(180, 180, 180)
+    GUI.AddUserIdBox.FontFace = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
+
+    local addBoxCorner = Instance.new("UICorner", GUI.AddUserIdBox)
+    addBoxCorner.CornerRadius = UDim.new(0, 8)
+
+    GUI.RemoveUserIdBox = Instance.new("TextBox", GUI.CustomizationsFrame)
+    GUI.RemoveUserIdBox.ZIndex = 3
+    GUI.RemoveUserIdBox.BorderSizePixel = 0
+    GUI.RemoveUserIdBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+    GUI.RemoveUserIdBox.TextScaled = true
+    GUI.RemoveUserIdBox.BackgroundColor3 = Color3.fromRGB(220, 80, 80)
+    GUI.RemoveUserIdBox.BackgroundTransparency = 0.85
+    GUI.RemoveUserIdBox.AnchorPoint = Vector2.new(0.5, 0.5)
+    GUI.RemoveUserIdBox.Size = UDim2.new(0, 180, 0, 30)
+    GUI.RemoveUserIdBox.Position = UDim2.new(0.5, 0, 0.5, 185)
+    GUI.RemoveUserIdBox.PlaceholderText = "Remove UserID"
+    GUI.RemoveUserIdBox.PlaceholderColor3 = Color3.fromRGB(180, 180, 180)
+    GUI.RemoveUserIdBox.FontFace = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
+
+    local removeBoxCorner = Instance.new("UICorner", GUI.RemoveUserIdBox)
+    removeBoxCorner.CornerRadius = UDim.new(0, 8)
+end
+
+Instance.new("UIDragDetector", GUI.Background)
+
+--===============================================
+-- FIRE FUNCTIONS
+--===============================================
+local function firev(name, args, m)
+    local char = Character
+    local tool = Backpack:FindFirstChild(name) or char:FindFirstChild(name)
+    if not tool then 
+        warn("❌ Tool not found: " .. name)
+        return false
+    end
+    tool.Parent = char
+    local event = tool
+    for _, v in ipairs(m) do
+        event = event:FindFirstChild(v)
+        if not event then 
+            warn("❌ Event not found: " .. v)
+            return false
+        end
+    end
+    event:FireServer(table.unpack(args))
+    return true
+end
+
+local function fireDaggerAbility()
+    local dagger = Backpack:FindFirstChild("DaggerOfShatteredDimensions") or Character:FindFirstChild("DaggerOfShatteredDimensions")
+    if not dagger then
+        warn("⚠️ Dagger not found!")
+        return false
+    end
+    dagger.Parent = Character
+    task.wait(0.3)
+    local remote = dagger:FindFirstChild("Remote")
+    if remote then
+        remote:FireServer(Enum.KeyCode.Q)
+        print("✅ Dagger ability fired!")
+    end
+    return true
+end
+
+--===============================================
+-- ROTATE TOOL LOGIC
+--===============================================
+local function createRotateTool()
+    local rotateTool = Instance.new("Tool")
+    rotateTool.Name = "Rotation Tool"
+    rotateTool.RequiresHandle = false
+
+    local snapAngle = 15
+    local selectedPart = nil
+    local ghostPart = nil
+    local handlePart = nil
+    local dragStartCFrame = nil
+
+    local arcHandles = Instance.new("ArcHandles")
+    arcHandles.Parent = CoreGui
+
+    local selectionBox = Instance.new("SelectionBox")
+    selectionBox.LineThickness = 0.05
+    selectionBox.SurfaceTransparency = 1
+    selectionBox.Color3 = Color3.fromRGB(79, 158, 255)
+    selectionBox.Parent = CoreGui
+
+    GUI.AngleTextBox:GetPropertyChangedSignal("Text"):Connect(function()
+        local text = GUI.AngleTextBox.Text
+        local num = tonumber(text)
+        if text == "" then
+            snapAngle = 15
+            GUI.AngleLabel.Text = "Rotation Angle: 15"
+        elseif num then
+            snapAngle = num
+            GUI.AngleLabel.Text = "Rotation Angle: " .. tostring(num)
+        end
+    end)
+
+    local function clearSelection()
+        if ghostPart then ghostPart:Destroy() end
+        if handlePart then handlePart:Destroy() end
+        ghostPart = nil
+        handlePart = nil
+        selectionBox.Adornee = nil
+        arcHandles.Adornee = nil
+        selectedPart = nil
+        SELECTED_BRICK = nil
+        GUI.StatusLabel.Text = "No brick selected"
+        GUI.StatusLabel.TextColor3 = Color3.fromRGB(150, 150, 150)
+    end
+
+    rotateTool.Equipped:Connect(function()
+        GUI.ScreenGui.Enabled = true
+    end)
+
+    rotateTool.Unequipped:Connect(function()
+        GUI.ScreenGui.Enabled = false
+        clearSelection()
+        dragStartCFrame = nil
+    end)
+
+    -- Whitelister add/remove buttons
+    if isWhitelister(LocalPlayerUserId) then
+        GUI.AddUserIdBox.FocusLost:Connect(function(enterPressed)
+            if enterPressed then
+                local userId = tonumber(GUI.AddUserIdBox.Text)
+                if userId then
+                    addToWhitelist(userId)
+                    GUI.AddUserIdBox.Text = ""
+                end
+            end
+        end)
+        GUI.RemoveUserIdBox.FocusLost:Connect(function(enterPressed)
+            if enterPressed then
+                local userId = tonumber(GUI.RemoveUserIdBox.Text)
+                if userId then
+                    removeFromWhitelist(userId)
+                    GUI.RemoveUserIdBox.Text = ""
+                end
+            end
+        end)
+    end
+
+    playerMouse.Button1Down:Connect(function()
+        if not GUI.ScreenGui.Enabled then return end
+        local hitPart = playerMouse.Target
+        
+        if hitPart and hitPart:IsDescendantOf(brickFolder) and selectedPart ~= hitPart then
+            clearSelection()
+            selectedPart = hitPart
+            SELECTED_BRICK = hitPart
+            targetPos = selectedPart.Position
+
+            GUI.StatusLabel.Text = "Selected: " .. selectedPart.Name
+            GUI.StatusLabel.TextColor3 = Color3.fromRGB(60, 220, 100)
+
+            ghostPart = selectedPart:Clone()
+            ghostPart.Size = ghostPart.Size + Vector3.new(0.01, 0.01, 0.01)
+            ghostPart.Transparency = 0.5
+            ghostPart.Anchored = true
+            ghostPart.CanCollide = false
+            ghostPart.Parent = Workspace
+
+            handlePart = selectedPart:Clone()
+            handlePart.Size = selectedPart.Size + Vector3.new(0.01, 0.01, 0.01)
+            handlePart.Transparency = 1
+            handlePart.Anchored = true
+            handlePart.CanCollide = false
+            handlePart.Parent = Workspace
+
+            selectionBox.Adornee = ghostPart
+            arcHandles.Adornee = handlePart
+        end
+    end)
+
+    arcHandles.MouseButton1Down:Connect(function(axis)
+        if not selectedPart or not handlePart then return end
+        dragStartCFrame = handlePart.CFrame
+        arcHandles.Axes = Axes.new(axis)
+    end)
+
+    arcHandles.MouseDrag:Connect(function(axis, relativeAngle)
+        if not ghostPart or not dragStartCFrame then return end
+        local snapped = math.rad(math.round(math.deg(relativeAngle) / snapAngle) * snapAngle)
+        local rx, ry, rz = 0, 0, 0
+        if axis == Enum.Axis.X then rx = snapped
+        elseif axis == Enum.Axis.Y then ry = snapped
+        elseif axis == Enum.Axis.Z then rz = snapped end
+
+        local newCFrame = dragStartCFrame * CFrame.Angles(rx, ry, rz)
+        ghostPart.CFrame = newCFrame
+        handlePart.CFrame = newCFrame
+    end)
+
+    arcHandles.MouseButton1Up:Connect(function()
+        arcHandles.Axes = Axes.new(Enum.Axis.X, Enum.Axis.Y, Enum.Axis.Z)
+    end)
+
+    local function executeAction()
+        if not ghostPart or not selectedPart then return end
+        local targetCFrame = ghostPart.CFrame
+        local partToRotate = selectedPart
+
+        clearSelection()
+        
+        partToRotate.CFrame = targetCFrame
+        GUI.StatusLabel.Text = "✅ Rotation Applied!"
+        task.delay(2, function()
+            if GUI.ScreenGui.Enabled then
+                GUI.StatusLabel.Text = "No brick selected"
+                GUI.StatusLabel.TextColor3 = Color3.fromRGB(150, 150, 150)
+            end
+        end)
+    end
+
+    -- SEQUENCE FUNCTION
+    local function runSequence()
+        if not SELECTED_BRICK then
+            GUI.StatusLabel.Text = "⚠️ Select a brick first!"
+            GUI.StatusLabel.TextColor3 = Color3.fromRGB(255, 180, 60)
+            task.delay(2, function()
+                GUI.StatusLabel.Text = "No brick selected"
+                GUI.StatusLabel.TextColor3 = Color3.fromRGB(150, 150, 150)
+            end)
+            return
+        end
+
+        local brick = Workspace.Bricks[localPlayer.Name]:FindFirstChild("Brick")
+        if not brick then
+            GUI.StatusLabel.Text = "❌ Brick not found!"
+            GUI.StatusLabel.TextColor3 = Color3.fromRGB(255, 80, 80)
+            return
+        end
+
+        local finalCFrame
+        if ghostPart then
+            finalCFrame = ghostPart.CFrame
+        else
+            finalCFrame = SELECTED_BRICK.CFrame
+        end
+
+        GUI.StatusLabel.Text = "⏳ 1/4 — Dagger..."
+        GUI.StatusLabel.TextColor3 = Color3.fromRGB(79, 158, 255)
+        fireDaggerAbility()
+        task.wait(2.5)
+
+        GUI.StatusLabel.Text = "⏳ 2/4 — Firing Collide × 2..."
+        firev("Paint", {SELECTED_BRICK, nil, RootPart.Position, "both 🤝", Color3.fromRGB(-255, -255, -255), "collide", ""}, {"Script", "Event"})
+        task.wait(1.5)
+        firev("Paint", {SELECTED_BRICK, nil, RootPart.Position, "both 🤝", Color3.fromRGB(-255, -255, -255), "collide", ""}, {"Script", "Event"})
+
+        GUI.StatusLabel.Text = "⏳ Waiting 7s..."
+        task.wait(7)
+
+        GUI.StatusLabel.Text = "⏳ 3/4 — Moving brick..."
+        SELECTED_BRICK.Anchored = false
+        local tween = TweenService:Create(SELECTED_BRICK, TweenInfo.new(2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {CFrame = finalCFrame})
+        tween:Play()
+        tween.Completed:Wait()
+        SELECTED_BRICK.Anchored = true
+        task.wait(0.5)
+
+        GUI.StatusLabel.Text = "⏳ 4/4 — Firing Anchor..."
+        firev("Paint", {SELECTED_BRICK, nil, RootPart.Position, "both 🤝", Color3.fromRGB(-255, -255, -255), "anchor", ""}, {"Script", "Event"})
+        task.wait(0.5)
+
+        GUI.StatusLabel.Text = "✅ DONE!"
+        GUI.StatusLabel.TextColor3 = Color3.fromRGB(60, 220, 100)
+        clearSelection()
+        task.delay(3, function()
+            if GUI.ScreenGui.Enabled then
+                GUI.StatusLabel.Text = "No brick selected"
+                GUI.StatusLabel.TextColor3 = Color3.fromRGB(150, 150, 150)
+            end
+        end)
+    end
+
+    UserInputService.InputBegan:Connect(function(input, gameProcessed)
+        if gameProcessed then return end
+        if input.KeyCode == Enum.KeyCode.Q and GUI.ScreenGui.Enabled then
+            executeAction()
+        end
+    end)
+
+    GUI.ConfirmButton.MouseButton1Click:Connect(function()
+        executeAction()
+    end)
+
+    GUI.SequenceButton.MouseButton1Click:Connect(function()
+        runSequence()
+    end)
+
+    rotateTool.Parent = localPlayer.Backpack
+end
+
+-- Initialize
+if localPlayer.Character then
+    createRotateTool()
+else
+    localPlayer.CharacterAdded:Wait()
+    createRotateTool()
+end
